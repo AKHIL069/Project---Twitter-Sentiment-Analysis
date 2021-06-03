@@ -1,0 +1,117 @@
+import numpy as np 
+import pandas as pd 
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk import pos_tag
+import string 
+from nltk.corpus import stopwords
+from nltk import NaiveBayesClassifier
+
+data = pd.read_csv("Train_Twitter_Sentiment_Analysis_Dataset.csv")
+data.head(10)
+
+# Creating list of Tuples
+documents = []
+for i in range(len(data)):
+    review_text = data["text"][i].split()
+    documents.append((review_text,data["airline_sentiment"][i]))
+documents[0:5]
+
+lemmatizer = WordNetLemmatizer()
+
+def get_simple_pos(tag):
+    if tag.startswith('J'):
+        return wordnet.ADJ
+    elif tag.startswith('V'):
+        return wordnet.VERB
+    elif tag.startswith('N'):
+        return wordnet.NOUN
+    elif tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return wordnet.NOUN
+
+stops = set(stopwords.words('english'))
+punctuations = list(string.punctuation)
+stops.update(punctuations)
+stops , string.punctuation
+
+def clean_review(words):
+    output_words = []
+    for w in words:
+        if w.lower() not in stops:
+            pos = pos_tag([w])
+            clean_word = lemmatizer.lemmatize(w,pos = get_simple_pos(pos[0][1]))
+            output_words.append(clean_word.lower())
+    return output_words
+
+documents = [(clean_review(document),category) for document,category in documents]
+documents[0]
+
+all_words = []
+for doc in documents:
+    all_words += doc[0]
+all_words
+
+for i in all_words:
+    if i[0] == '@':
+        all_words.remove(i)
+all_words
+
+import nltk
+
+freq = nltk.FreqDist(all_words)
+common = freq.most_common(3000)
+common
+
+features = [i[0] for i in common]
+features
+
+def get_feature_dict(words):
+    current_features = {}
+    words_set = set(words)
+    for w in features:
+        current_features[w] = w in words_set
+    return current_features
+    
+output = get_feature_dict(documents[0][0])
+output
+
+training_data = [(get_feature_dict(doc),category) for doc,category in documents]
+training_data  
+
+# For testing data
+test_data = pd.read_csv("Test_Twitter_Sentiment_Analysis_Dataset.csv")
+test_data.head(10)
+
+test_documents = []
+for i in range(len(test_data)):
+    review_text = test_data["text"][i].split()
+    test_documents.append((review_text,"negative"))
+test_documents[0:5]
+
+test_data = [(clean_review(document),category) for document,category in test_documents]
+test_data[0]
+
+test_documents
+
+testing_data=[get_feature_dict(doc) for doc,category in test_data]
+
+from nltk import NaiveBayesClassifier
+
+classifier = NaiveBayesClassifier.train(training_data)
+
+nltk.classify.accuracy(classifier,testing_data)
+
+print(len(testing_data))
+
+y_pred=[]
+for i in range(len(testing_data)):
+    y_pred.append(classifier.classify(testing_data[i]))
+y_pred
+
+# Creating CSV
+import pandas as pd
+df=pd.DataFrame(y_pred)
+df.to_csv('twitter_predictions.csv',header=False,index=False)
+classifier.show_most_informative_features(15)
